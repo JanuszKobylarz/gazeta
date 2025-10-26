@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<title>Podgląd modułów gazety</title>
+<style>
+body { font-family: Arial, sans-serif; background: #f8f8f8; margin: 30px; }
+.controls { margin-bottom: 18px; }
+#modulesPreview {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  grid-template-rows: repeat(8, 110px);
+  gap: 2px;
+  border: 2px solid #666;
+  background: #ececec;
+  width: 900px;
+  margin: 0 auto;
+  position: relative;
+}
+.module-cell {
+  background: #fff;
+  border: 1px dashed #b0b0b0;
+  font-size: 13px;
+  padding: 4px 6px;
+  min-width: 0;
+  min-height: 0;
+  box-sizing: border-box;
+  position: relative;
+  z-index: 1;
+}
+.module-blok {
+  background: #daf1ff !important;
+  border: 2px solid #1976cf !important;
+  z-index: 2;
+}
+.headline-block {
+  background: #ddeeff;
+  font-size: 1.15em;
+  font-weight: bold;
+  text-align: center;
+  padding: 10px 8px 6px 8px;
+  border: 1.5px solid #1976cf;
+  box-sizing: border-box;
+  margin-bottom: 4px;
+  grid-column: var(--start-col) / span var(--span-cols);
+  grid-row: var(--start-row);
+  z-index: 10;
+  display: flex; align-items: center; justify-content: center;
+  min-width: 0;
+}
+.lamy {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  pointer-events: none;
+  z-index: 5;
+}
+.lamy-col {
+  position: absolute;
+  border-left: 2px solid #1976cf88;
+  height: 100%;
+  top: 0; bottom: 0;
+}
+.column-blok {
+    background: #daf1ff;
+    border: 2px solid #1976cf;
+    font-size: 13px;
+    padding: 8px 10px;
+    box-sizing: border-box;
+    min-width: 0;
+    min-height: 0;
+    height: 100%;
+    overflow: auto;
+    grid-row: 2 / span 8; /* cała kolumna w bloku */
+}
+</style>
+</head>
+<body>
+<div class="controls">
+  <label>Kolumny w bloku: <input id="cols" type="number" min="1" max="5" value="2"></label>
+  <label>Wiersze w bloku: <input id="rows" type="number" min="1" max="8" value="3"></label>
+  <label>Maks. znaków/moduł: <input id="maxLength" type="number" min="20" max="800" value="150"></label>
+  <br><br>
+  <label>Nagłówek:</label>
+  <input id="headline" type="text" value="Przykładowy tytuł bloku" style="width:300px;">
+  <br>
+  <label>Treść:</label><br>
+  <textarea id="content" rows="6" cols="60">Przykładowa treść, która zostanie podzielona na moduły bloku w siatce. Możesz wprowadzić tu własny tekst lub wygenerować większą liczbę znaków, aby przetestować łamanie słupków i zapełnienie bloku.</textarea>
+  <br><button onclick="updatePreview()">Podgląd</button>
+</div>
+<div id="modulesPreview"></div>
+<script>
+const inputIds = ['cols', 'rows', 'maxLength', 'headline', 'content'];
+
+function saveInputsToStorage() {
+  inputIds.forEach(id => {
+    localStorage.setItem('gazeta_' + id, document.getElementById(id).value);
+  });
+}
+function loadInputsFromStorage() {
+  inputIds.forEach(id => {
+    const val = localStorage.getItem('gazeta_' + id);
+    if (val !== null) document.getElementById(id).value = val;
+  });
+}
+
+function updatePreview() {
+    const maxColumns = 5, maxRows = 8;
+    const columns = parseInt(document.getElementById('cols').value, 10);
+    const rows = parseInt(document.getElementById('rows').value, 10);
+    const maxCharsPerCol = parseInt(document.getElementById('maxLength').value, 10) * rows;
+
+    const content = document.getElementById('content').value.trim();
+    const headline = document.getElementById('headline').value.trim();
+
+    // DZIELIMY tekst na kolumny "ciurkiem" (nie na wiersze/moduły)
+    let idx = 0;
+    const blokCols = [];
+    for(let col = 0; col < columns; col++) {
+        blokCols.push(content.substr(idx, maxCharsPerCol));
+        idx += maxCharsPerCol;
+    }
+
+    // Render headline
+    let html = `<div class="headline-block"
+         style="grid-column: 1 / span ${columns}; grid-row: 1;">
+         ${headline || '&nbsp;'}</div>`;
+
+    // Render lejące kolumny bloku (każda zapełniona treścią)
+    for(let col=0; col<maxColumns; col++) {
+        if(col < columns) {
+            html += `<div class="column-blok" style="grid-column:${col+1}; grid-row:2 / span ${rows};">${blokCols[col]||''}</div>`;
+        } else {
+            // Puste kolumny poza blokiem
+            html += `<div class="module-cell" style="grid-column:${col+1}; grid-row:2 / span ${rows};"></div>`;
+        }
+    }
+
+    // Dodaj podziałki łamowe dla całego gridu
+    let lamyHTML = '';
+    for (let c = 1; c < maxColumns; ++c) {
+      let left = `${(c / maxColumns) * 100}%`;
+      lamyHTML += `<div class="lamy-col" style="left:${left}"></div>`;
+    }
+    html += `<div class="lamy">${lamyHTML}</div>`;
+
+    const grid = document.getElementById('modulesPreview');
+    grid.style.display = 'grid';
+    grid.style.gridTemplateColumns = `repeat(${maxColumns}, 1fr)`;
+    grid.style.gridTemplateRows = `auto repeat(${maxRows}, 110px)`;
+    grid.innerHTML = html;
+    saveInputsToStorage();
+}
+
+// Załaduj z localStorage i od razu zaktualizuj
+window.addEventListener('DOMContentLoaded', () => {
+  loadInputsFromStorage();
+  updatePreview();
+});
+inputIds.forEach(id => {
+  document.getElementById(id).addEventListener('change', saveInputsToStorage);
+  document.getElementById(id).addEventListener('input', saveInputsToStorage);
+});
+</script>
+</body>
+</html>
